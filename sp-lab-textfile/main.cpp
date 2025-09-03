@@ -1,21 +1,92 @@
-#include <windows.h>
+﻿#include <windows.h>
 #include <stdlib.h>
 #include <string.h>
 #include <tchar.h>
 
-// Global variables
+#define ID_FILE_OPEN    1001
+#define ID_FILE_SAVE    1002  
+#define ID_FILE_EXIT    1003
+#define ID_EDIT_CUT     1004
+#define ID_EDIT_COPY    1005
+#define ID_EDIT_PASTE   1006
+#define ID_HELP_ABOUT   1007
+#define IDM_MYMENURESOURCE   3
 
-// The main window class name.
 static TCHAR szWindowClass[] = _T("DesktopApp");
 
-// The string that appears in the application's title bar.
 static TCHAR szTitle[] = _T("WinApiTextEditor");
 
-// Stored instance handle for use in Win32 API calls such as FindResource
 HINSTANCE hInst;
 
-// Forward declarations of functions included in this code module:
-LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    PAINTSTRUCT ps;
+    HDC hdc;
+    TCHAR greeting[] = _T("Hello, Windows desktop!");
+
+    switch (message)
+    {
+
+    case WM_CREATE:
+        MessageBox(NULL,
+            _T("Call a WM_CREATE!"),
+            _T(""),
+            NULL);
+
+        break;
+    case WM_PAINT:
+        hdc = BeginPaint(hWnd, &ps);
+
+        // Here, we will be using our application's specific layout in the future lab.
+        // At the moment, this is a greeting section.
+        TextOut(hdc,
+            5, 5,
+            greeting, _tcslen(greeting));
+        // End application-specific layout section.
+
+        EndPaint(hWnd, &ps);
+        break;
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        break;
+    case  WM_COMMAND:
+        switch (LOWORD(wParam))
+        {
+        case ID_FILE_OPEN:
+            MessageBox(hWnd, L"Open file", L"File", MB_OK);
+            break;
+        case ID_FILE_SAVE:
+            MessageBox(hWnd, L"Save file", L"File", MB_OK);
+            break;
+        case ID_FILE_EXIT:
+            PostQuitMessage(0);
+            break;
+        case ID_EDIT_CUT:
+            MessageBox(hWnd, L"Cut", L"Edit", MB_OK);
+            break;
+        case ID_EDIT_COPY:
+            MessageBox(hWnd, L"Copy", L"Edit", MB_OK);
+            break;
+        case ID_EDIT_PASTE:
+            MessageBox(hWnd, L"Paste", L"Edit", MB_OK);
+            break;
+        case ID_HELP_ABOUT:
+            MessageBox(hWnd, L"About\nYea", L"About", MB_OK);
+            break;
+        }
+        break;
+        MessageBox(NULL,
+            _T("Call a WM_COMMAND!"),
+            _T(""),
+            NULL);
+        break;
+    default:
+        return DefWindowProc(hWnd, message, wParam, lParam);
+        break;
+    }
+
+    return 0;
+}
 
 int WINAPI WinMain(
     _In_ HINSTANCE hInstance,
@@ -43,26 +114,31 @@ int WINAPI WinMain(
     {
         MessageBox(NULL,
             _T("Call to RegisterClassEx failed!"),
-            _T("Windows Desktop Guided Tour"),
+            _T(""),
             NULL);
 
         return 1;
     }
+    HMENU hMainMenu = CreateMenu();
 
-    // Store instance handle in our global variable
-    hInst = hInstance;
+    HMENU hFileMenu = CreatePopupMenu();
+    AppendMenu(hFileMenu, MF_STRING, ID_FILE_OPEN, L"Open");
+    AppendMenu(hFileMenu, MF_STRING, ID_FILE_SAVE, L"Save");
+    AppendMenu(hFileMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenu(hFileMenu, MF_STRING, ID_FILE_EXIT, L"Exit");
 
-    // The parameters to CreateWindowEx explained:
-    // WS_EX_OVERLAPPEDWINDOW : An optional extended window style.
-    // szWindowClass: the name of the application
-    // szTitle: the text that appears in the title bar
-    // WS_OVERLAPPEDWINDOW: the type of window to create
-    // CW_USEDEFAULT, CW_USEDEFAULT: initial position (x, y)
-    // 500, 100: initial size (width, length)
-    // NULL: the parent of this window
-    // NULL: this application does not have a menu bar
-    // hInstance: the first parameter from WinMain
-    // NULL: not used in this application
+    HMENU hEditMenu = CreatePopupMenu();
+    AppendMenu(hEditMenu, MF_STRING, ID_EDIT_CUT, L"Cut");
+    AppendMenu(hEditMenu, MF_STRING, ID_EDIT_COPY, L"Copy");
+    AppendMenu(hEditMenu, MF_STRING, ID_EDIT_PASTE, L"Paste");
+
+    HMENU hHelpMenu = CreatePopupMenu();
+    AppendMenu(hHelpMenu, MF_STRING, ID_HELP_ABOUT, L"About");
+
+    AppendMenu(hMainMenu, MF_POPUP, (UINT_PTR)hFileMenu, L"File");
+    AppendMenu(hMainMenu, MF_POPUP, (UINT_PTR)hEditMenu, L"Edit");
+    AppendMenu(hMainMenu, MF_POPUP, (UINT_PTR)hHelpMenu, L"Help");
+
     HWND hWnd = CreateWindowEx(
         WS_EX_OVERLAPPEDWINDOW,
         szWindowClass,
@@ -71,7 +147,7 @@ int WINAPI WinMain(
         CW_USEDEFAULT, CW_USEDEFAULT,
         500, 100,
         NULL,
-        NULL,
+        hMainMenu,
         hInstance,
         NULL
     );
@@ -80,20 +156,16 @@ int WINAPI WinMain(
     {
         MessageBox(NULL,
             _T("Call to CreateWindow failed!"),
-            _T("Windows Desktop Guided Tour"),
+            _T(""),
             NULL);
 
         return 1;
     }
 
-    // The parameters to ShowWindow explained:
-    // hWnd: the value returned from CreateWindow
-    // nCmdShow: the fourth parameter from WinMain
     ShowWindow(hWnd,
         nCmdShow);
     UpdateWindow(hWnd);
 
-    // Main message loop:
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0))
     {
@@ -102,42 +174,4 @@ int WINAPI WinMain(
     }
 
     return (int)msg.wParam;
-}
-
-//  FUNCTION: WndProc(HWND, UINT, WPARAM, LPARAM)
-//
-//  PURPOSE:  Processes messages for the main window.
-//
-//  WM_PAINT    - Paint the main window
-//  WM_DESTROY  - post a quit message and return
-LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    PAINTSTRUCT ps;
-    HDC hdc;
-    TCHAR greeting[] = _T("Hello, Windows desktop!");
-
-    switch (message)
-    {
-    case WM_PAINT:
-        hdc = BeginPaint(hWnd, &ps);
-
-        // Here your application is laid out.
-        // For this introduction, we just print out "Hello, Windows desktop!"
-        // in the top left corner.
-        TextOut(hdc,
-            5, 5,
-            greeting, _tcslen(greeting));
-        // End application-specific layout section.
-
-        EndPaint(hWnd, &ps);
-        break;
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
-    default:
-        return DefWindowProc(hWnd, message, wParam, lParam);
-        break;
-    }
-
-    return 0;
 }
