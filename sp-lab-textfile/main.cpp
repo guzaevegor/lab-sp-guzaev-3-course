@@ -12,11 +12,113 @@
 #define ID_HELP_ABOUT   1007
 #define IDM_MYMENURESOURCE   3
 
+
+const int PIPE_SIZE = 20;      
+int g_numPipesX = 0;           
+int g_numPipesY = 0;           
+COLORREF** g_pipeColors = nullptr;  
+
 static TCHAR szWindowClass[] = _T("DesktopApp");
 
 static TCHAR szTitle[] = _T("WinApiTextEditor");
 
 HINSTANCE hInst;
+
+HWND g_screensaverWnd = NULL;
+bool g_screensaverActive = false;
+ULONGLONG g_lastMouseActivity = GetTickCount64();
+LRESULT CALLBACK ScreensaverWndProc(HWND, UINT, WPARAM, LPARAM);
+
+void InitializePipes(int width, int height)
+{
+    if (g_pipeColors)
+    {
+        for (int y = 0; y < g_numPipesY; ++y)
+            delete[] g_pipeColors[y];
+        delete[] g_pipeColors;
+    }
+
+    g_numPipesX = width / PIPE_SIZE;
+    g_numPipesY = height / PIPE_SIZE;
+
+    g_pipeColors = new COLORREF * [g_numPipesY];
+    for (int y = 0; y < g_numPipesY; ++y)
+    {
+        g_pipeColors[y] = new COLORREF[g_numPipesX];
+        for (int x = 0; x < g_numPipesX; ++x)
+        {
+            int r = rand() % 256;
+            int g = rand() % 256;
+            int b = rand() % 256;
+            g_pipeColors[y][x] = RGB(r, g, b);
+        }
+    }
+}
+
+void UpdatePipeColors()
+{
+    for (int y = 0; y < g_numPipesY; ++y)
+    {
+        for (int x = 0; x < g_numPipesX; ++x){
+            if (rand() % 50 == 0)  
+            {
+                int r = rand() % 256;
+                int g = rand() % 256;
+                int b = rand() % 256;
+                g_pipeColors[y][x] = RGB(r, g, b);
+            }
+        }
+    }
+}
+
+void StartScreensaver(HWND parentWnd)
+{
+    if (g_screensaverActive) return;
+
+    g_screensaverActive = true;
+
+    g_screensaverWnd = CreateWindowEx(
+        0,                         
+        L"ScreensaverClass",       
+        L"Screensaver",
+        WS_POPUP | WS_VISIBLE,      
+        0, 0,                      
+        GetSystemMetrics(SM_CXSCREEN),  // Ширина всего экрана
+        GetSystemMetrics(SM_CYSCREEN), 
+        NULL,                  
+        NULL,
+        GetModuleHandle(NULL),
+        NULL
+    );
+}
+
+void StopScreensaver()
+{
+    if (!g_screensaverActive) return;
+
+    g_screensaverActive = false;
+
+    if (g_screensaverWnd)
+    {
+        DestroyWindow(g_screensaverWnd);
+        g_screensaverWnd = NULL;
+    }
+
+    g_lastMouseActivity = GetTickCount64();
+}
+
+void RegisterScreensaverClass(HINSTANCE hInstance)
+{
+    WNDCLASS wc = { 0 };
+    wc.lpfnWndProc = ScreensaverWndProc;     // Отдельная процедура
+    wc.hInstance = hInstance;
+    wc.lpszClassName = L"ScreensaverClass";
+    wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH); // Чёрный фон
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+
+    RegisterClass(&wc);
+}
+
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -26,7 +128,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
     switch (message)
     {
-
     case WM_CREATE:
         MessageBox(NULL,
             _T("Call a WM_CREATE!"),
@@ -75,14 +176,91 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             break;
         }
         break;
-        MessageBox(NULL,
-            _T("Call a WM_COMMAND!"),
-            _T(""),
-            NULL);
+
+    case WM_LBUTTONDOWN:
+    case WM_RBUTTONDOWN:
+    case WM_NCMOUSEMOVE: 
+        g_lastMouseActivity = GetTickCount64();
+        if (g_screensaverActive) {
+            StopScreensaver();
+        }
         break;
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
         break;
+    }
+
+    return 0;
+}
+
+LRESULT CALLBACK ScreensaverWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_CREATE:
+        RECT clientRect;
+        GetClientRect(hWnd, &clientRect);
+        InitializePipes(clientRect.right, clientRect.bottom);
+
+        SetTimer(hWnd, 1, 100, NULL);
+        break;
+
+    case WM_TIMER:
+        UpdatePipeColors();
+        InvalidateRect(hWnd, NULL, FALSE);
+        break;
+
+    case WM_PAINT:
+    {
+        PAINTSTRUCT ps;
+        HDC hdc = BeginPaint(hWnd, &ps);
+
+        for (int y = 0; y < g_numPipesY; ++y)
+        {
+            for (int x = 0; x < g_numPipesX; ++x)
+            {
+                HBRUSH brush = CreateSolidBrush(g_pipeColors[y][x]);
+
+                RECT pipeRect = {
+                    x * PIPE_SIZE,           // left
+                    y * PIPE_SIZE,           // top  
+                    (x + 1) * PIPE_SIZE,     // right
+                    (y + 1) * PIPE_SIZE      // bottom
+                };
+
+                FillRect(hdc, &pipeRect, brush);
+
+                DeleteObject(brush);
+            }
+        }
+
+        EndPaint(hWnd, &ps);
+    }
+    break;
+
+    case WM_SIZE:
+        InitializePipes(LOWORD(lParam), HIWORD(lParam));
+        InvalidateRect(hWnd, NULL, TRUE);
+        break;
+
+    case WM_LBUTTONDOWN:
+    case WM_KEYDOWN:
+        StopScreensaver();
+        break;
+
+    case WM_DESTROY:
+        KillTimer(hWnd, 1);
+        if (g_pipeColors)
+        {
+            for (int y = 0; y < g_numPipesY; ++y)
+                delete[] g_pipeColors[y];
+            delete[] g_pipeColors;
+            g_pipeColors = nullptr;
+        }
+        break;
+
+    default:
+        return DefWindowProc(hWnd, message, wParam, lParam);
     }
 
     return 0;
@@ -119,6 +297,9 @@ int WINAPI WinMain(
 
         return 1;
     }
+    RegisterScreensaverClass(hInstance);
+
+    
     HMENU hMainMenu = CreateMenu();
 
     HMENU hFileMenu = CreatePopupMenu();
@@ -145,7 +326,7 @@ int WINAPI WinMain(
         szTitle,
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT,
-        500, 100,
+        500, 500,
         NULL,
         hMainMenu,
         hInstance,
@@ -162,16 +343,45 @@ int WINAPI WinMain(
         return 1;
     }
 
+
+    g_lastMouseActivity = GetTickCount64();
+
     ShowWindow(hWnd,
         nCmdShow);
     UpdateWindow(hWnd);
 
     MSG msg;
-    while (GetMessage(&msg, NULL, 0, 0))
+    bool running = true;
+    while (running)
     {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+        {
+            if (msg.message == WM_QUIT)
+            {
+                running = false;
+                break;
+            }
+
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+
+        
+        if (!g_screensaverActive)
+        {
+            ULONGLONG currentTime = GetTickCount64();
+            ULONGLONG elapsed = currentTime - g_lastMouseActivity;
+
+            if (elapsed >= 30000) // 30 секунд
+            {
+                StartScreensaver(hWnd);
+            }
+        }
+
+       
+        Sleep(10); 
     }
 
     return (int)msg.wParam;
 }
+
