@@ -27,6 +27,7 @@ HINSTANCE hInst;
 
 HWND g_screensaverWnd = NULL;
 bool g_screensaverActive = false;
+POINT g_lastScreensaverMousePos;
 ULONGLONG g_lastMouseActivity = GetTickCount64();
 LRESULT CALLBACK ScreensaverWndProc(HWND, UINT, WPARAM, LPARAM);
 
@@ -217,11 +218,18 @@ LRESULT CALLBACK ScreensaverWndProc(HWND hWnd, UINT message, WPARAM wParam, LPAR
 	switch (message)
 	{
 	case WM_CREATE:
-		RECT clientRect;
-		GetClientRect(hWnd, &clientRect);
-		InitializePipes(clientRect.right, clientRect.bottom);
+		{
+			RECT clientRect;
+			GetClientRect(hWnd, &clientRect);
+			InitializePipes(clientRect.right, clientRect.bottom);
 
-		SetTimer(hWnd, 1, 100, NULL);
+			// Инициализируем текущую позицию мыши при создании окна
+			POINT currentPos;
+			GetCursorPos(&currentPos);
+			g_lastScreensaverMousePos = currentPos; // Глобальная переменная
+
+			SetTimer(hWnd, 1, 100, NULL);
+		}
 		break;
 
 	case WM_TIMER:
@@ -261,6 +269,18 @@ LRESULT CALLBACK ScreensaverWndProc(HWND hWnd, UINT message, WPARAM wParam, LPAR
 		InitializePipes(LOWORD(lParam), HIWORD(lParam));
 		InvalidateRect(hWnd, NULL, TRUE);
 		break;
+	case WM_MOUSEMOVE:
+	{
+		POINT currentPos;
+		GetCursorPos(&currentPos);
+
+		if (g_lastScreensaverMousePos.x != currentPos.x ||
+			g_lastScreensaverMousePos.y != currentPos.y) {
+			StopScreensaver();
+		}
+	}
+	break;
+
 	case WM_LBUTTONDOWN: 
 	case WM_KEYDOWN:
 		StopScreensaver();
@@ -390,14 +410,14 @@ int WINAPI WinMain(
 			ULONGLONG currentTime = GetTickCount64();
 			ULONGLONG elapsed = currentTime - g_lastMouseActivity;
 
-			if (elapsed >= 3000) // 30 секунд
+			if (elapsed >= 3000) // 3
 			{
 				StartScreensaver(hWnd);
 			}
 		}
 
 
-		Sleep(10);
+		Sleep(50);
 	}
 
 	return (int)msg.wParam;
