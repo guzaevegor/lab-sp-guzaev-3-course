@@ -410,7 +410,7 @@ int WINAPI WinMain(
 			ULONGLONG currentTime = GetTickCount64();
 			ULONGLONG elapsed = currentTime - g_lastMouseActivity;
 
-			if (elapsed >= 3000) // 3
+			if (elapsed >= 30000) // 30 seconds to mars
 			{
 				StartScreensaver(hWnd);
 			}
