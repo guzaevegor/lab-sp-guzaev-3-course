@@ -77,9 +77,7 @@ void StartScreensaver(HWND parentWnd)
 {
 	if (g_screensaverActive) return;
 
-	g_screensaverActive = true;
-
-	g_screensaverWnd = CreateWindowEx(
+	HWND newWnd = CreateWindowEx(
 		0,
 		L"ScreensaverClass",
 		L"Screensaver",
@@ -92,6 +90,10 @@ void StartScreensaver(HWND parentWnd)
 		GetModuleHandle(NULL),
 		NULL
 	);
+	if (newWnd) {
+		g_screensaverWnd = newWnd;
+		g_screensaverActive = true;  
+	}
 }
 
 void StopScreensaver()
